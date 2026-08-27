@@ -83,6 +83,12 @@
   }
   .qtype-badge.trivia{background:rgba(227,168,87,0.18); color:var(--amber);}
   .qtype-badge.rank{background:rgba(46,139,154,0.2); color:var(--azulejo);}
+  .qtype-badge.wheel{background:rgba(140,160,107,0.22); color:var(--sage);}
+
+  .wheel-wrap{position:relative; width:220px; height:220px; margin:6px auto 20px;}
+  .wheel-pointer{position:absolute; top:-10px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:11px solid transparent; border-right:11px solid transparent; border-top:20px solid var(--chalk); z-index:5;}
+  .wheel-disc{width:100%; height:100%; border-radius:50%; border:5px solid var(--chalk); position:relative; box-shadow:0 6px 18px rgba(0,0,0,0.35);}
+  .wheel-label{position:absolute; top:50%; left:50%; font-size:1.3rem; line-height:1; text-align:center;}
 
   .option{
     width:100%; text-align:left; background:rgba(244,241,230,0.06); border:1.5px solid var(--line);
@@ -153,35 +159,33 @@
 
 <script>
 /* ================= DATA ================= */
+// Placeholders — vul deze later in met de echte rank-vragen.
 const RANK_QUESTIONS = [
-  "Wie staat het eerst op de dansvloer?",
-  "Wie heeft de meeste tijd nodig om klaar te staan bij de deur?",
-  "Wie raakt dit weekend het eerst de weg kwijt?",
-  "Wie houdt het langst vol tijdens het stappen?",
-  "Wie haakt het eerst af bij een drankspelletje?",
-  "Wie heeft dit weekend het beste voorbereid?",
-  "Wie spreekt het snelst een local aan voor een extra rondje?",
-  "Wie klaagt het eerst als het weer tegenzit?",
+  "Rank-vraag 1 — nog in te vullen",
+  "Rank-vraag 2 — nog in te vullen",
+  "Rank-vraag 3 — nog in te vullen",
+  "Rank-vraag 4 — nog in te vullen",
+  "Rank-vraag 5 — nog in te vullen",
+  "Rank-vraag 6 — nog in te vullen",
+  "Rank-vraag 7 — nog in te vullen",
+  "Rank-vraag 8 — nog in te vullen",
+  "Rank-vraag 9 — nog in te vullen",
+  "Rank-vraag 10 — nog in te vullen",
 ];
 
-const TRIVIA_QUESTIONS = [
-  {q:"Welk land heeft de meeste tijdzones?", options:["Rusland","Verenigde Staten","Frankrijk","China"], correct:2},
-  {q:"Hoeveel harten heeft een octopus?", options:["1","2","3","4"], correct:2},
-  {q:"Welke stad ligt verspreid over twee continenten?", options:["Moskou","Istanbul","Athene","Caïro"], correct:1},
-  {q:"In welk jaar viel de Berlijnse Muur?", options:["1987","1989","1991","1993"], correct:1},
-  {q:"Wat is de hoofdstad van Australië?", options:["Sydney","Melbourne","Canberra","Perth"], correct:2},
-  {q:"Welke planeet staat bekend als de rode planeet?", options:["Venus","Mars","Jupiter","Saturnus"], correct:1},
-  {q:"Hoeveel spelers van één team staan er tegelijk op het veld bij basketbal?", options:["4","5","6","7"], correct:1},
-  {q:"Wie schilderde 'De Nachtwacht'?", options:["Vermeer","Van Gogh","Rembrandt","Mondriaan"], correct:2},
-  {q:"Wat is het snelste landdier ter wereld?", options:["Leeuw","Cheetah","Antilope","Struisvogel"], correct:1},
-  {q:"Welke munt gebruikte Nederland vóór de euro?", options:["Frank","Mark","Gulden","Kroon"], correct:2},
-  {q:"Hoeveel poten heeft een spin?", options:["6","8","10","12"], correct:1},
-  {q:"Wat is volgens de meeste bronnen de langste rivier ter wereld?", options:["Amazone","Jangtsekiang","Nijl","Mississippi"], correct:2},
-  {q:"Hoeveel landen grenzen aan Duitsland?", options:["6","7","9","11"], correct:2},
-  {q:"Welke kunstenaar sneed een deel van zijn eigen oor af?", options:["Pablo Picasso","Vincent van Gogh","Salvador Dalí","Claude Monet"], correct:1},
+// 10 rank-vragen (R), met 6 rad-momenten (W) verspreid zodat elke speler precies 1x draait
+const SEQUENCE = ["R","W","R","R","W","R","W","R","R","W","R","W","R","R","W","R"];
+const REAL_Q_COUNT = SEQUENCE.filter(s=>s!=="W").length;
+
+const WHEEL_SEGMENTS = [
+  {type:"bonus", amount:1, icon:"⭐+1", color:"#F0A940"},
+  {type:"bonus", amount:2, icon:"⭐+2", color:"#F6C36B"},
+  {type:"minus", amount:1, icon:"💀-1", color:"#C4432E"},
+  {type:"minus", amount:2, icon:"💀-2", color:"#8E2A1E"},
+  {type:"beer_self", icon:"🍺", color:"#2E8B9A"},
+  {type:"beer_choice", icon:"🍺👉", color:"#8CA06B"},
 ];
 
-const SEQUENCE = ["T","T","R","T","R","T","T","R","T","T","R","T","T","R","T","R","T","T","R","T","T","R"];
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 
 function genCode(){ let s=""; for(let i=0;i<4;i++) s += CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)]; return s; }
@@ -194,8 +198,8 @@ const ICE_CONFIG = {
     { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
   ]
 };
-function triviaIndexFor(qIndex){ let c=-1; for(let i=0;i<=qIndex;i++){ if(SEQUENCE[i]==="T") c++; } return c; }
 function rankIndexFor(qIndex){ let c=-1; for(let i=0;i<=qIndex;i++){ if(SEQUENCE[i]==="R") c++; } return c; }
+function wheelIndexFor(qIndex){ let c=-1; for(let i=0;i<=qIndex;i++){ if(SEQUENCE[i]==="W") c++; } return c; }
 function computeRankTotals(order, subsMap){
   const totals = [];
   const subsList = Object.values(subsMap);
@@ -205,6 +209,21 @@ function computeRankTotals(order, subsMap){
     totals.push({id, avg: sum / subsList.length});
   });
   return totals;
+}
+// Shared by host (scoring) and client (display): 1e=+3, 2e=+2, 3e=+1, laatste=-1 (bij >3 spelers), rest=0
+function rankPlacements(order, subsMap){
+  const totals = computeRankTotals(order, subsMap);
+  const orderIndex = {};
+  order.forEach((id,i)=>{ orderIndex[id]=i; });
+  const sorted = [...totals].sort((a,b)=> a.avg-b.avg || orderIndex[a.id]-orderIndex[b.id]);
+  return sorted.map((t,idx)=>{
+    let pts = 0;
+    if(idx===0) pts=3;
+    else if(idx===1) pts=2;
+    else if(idx===2) pts=1;
+    else if(sorted.length>3 && idx===sorted.length-1) pts=-1;
+    return {id:t.id, avg:t.avg, place:idx+1, pts};
+  });
 }
 
 /* ================= NETWORK / GAME STATE ================= */
@@ -257,6 +276,7 @@ function snapshot(){
     scores: hostState.scores,
     triviaRecord: hostState.triviaRecord,
     rankSubs: hostState.rankSubs,
+    wheelResult: hostState.wheelResult,
   };
 }
 function broadcast(){
@@ -302,16 +322,40 @@ function processRankSubmit(fromId, order){
   }
   broadcast();
 }
+function processWheelSpin(fromId){
+  if(hostState.phase!=="question" || SEQUENCE[hostState.qIndex]!=="W") return;
+  const turnId = hostState.order[hostState.turn % hostState.order.length];
+  if(fromId !== turnId) return;
+  if(hostState.wheelResult) return;
+  const segmentIndex = Math.floor(Math.random()*WHEEL_SEGMENTS.length);
+  const seg = WHEEL_SEGMENTS[segmentIndex];
+  hostState.wheelResult = {segmentIndex, chosenId:null};
+  if(seg.type==="bonus"){ hostState.scores[turnId] = (hostState.scores[turnId]||0) + seg.amount; }
+  else if(seg.type==="minus"){ hostState.scores[turnId] = (hostState.scores[turnId]||0) - seg.amount; }
+  broadcast();
+}
+function processWheelChoice(fromId, chosenId){
+  if(hostState.phase!=="question" || SEQUENCE[hostState.qIndex]!=="W") return;
+  const turnId = hostState.order[hostState.turn % hostState.order.length];
+  if(fromId !== turnId) return;
+  if(!hostState.wheelResult || WHEEL_SEGMENTS[hostState.wheelResult.segmentIndex].type!=="beer_choice") return;
+  if(hostState.wheelResult.chosenId) return;
+  hostState.wheelResult.chosenId = chosenId;
+  broadcast();
+}
 function handleIncoming(fromId, msg){
   if(msg.t==="join") addPlayer(fromId, msg.name);
   else if(msg.t==="triviaAnswer") processTriviaAnswer(fromId, msg.idx);
   else if(msg.t==="rankSubmit") processRankSubmit(fromId, msg.order);
+  else if(msg.t==="wheelSpin") processWheelSpin(fromId);
+  else if(msg.t==="wheelChoice") processWheelChoice(fromId, msg.chosenId);
 }
 function hostStartGame(){
   hostState.order = hostState.players.map(p=>p.id);
   hostState.phase = "question";
   hostState.qIndex = 0; hostState.turn = 0;
   hostState.triviaRecord = null; hostState.rankSubs = {}; hostState.rankScored = false;
+  hostState.wheelResult = null;
   broadcast();
 }
 function hostNextQuestion(){
@@ -319,6 +363,7 @@ function hostNextQuestion(){
   if(type==="T") hostState.turn++;
   hostState.qIndex++;
   hostState.triviaRecord = null; hostState.rankSubs = {}; hostState.rankScored = false;
+  hostState.wheelResult = null;
   if(hostState.qIndex >= SEQUENCE.length) hostState.phase = "final";
   broadcast();
 }
@@ -368,7 +413,7 @@ async function hostCreateRoom(name){
     isHost = true; myId = "host"; myName = name;
     hostState = {
       code, players:[{id:"host", name}], order:[], phase:"lobby",
-      qIndex:0, turn:0, scores:{}, triviaRecord:null, rankSubs:{}, rankScored:false
+      qIndex:0, turn:0, scores:{}, triviaRecord:null, rankSubs:{}, rankScored:false, wheelResult:null
     };
     conns = {};
     hostPeer.on("connection", conn=>{
@@ -434,6 +479,7 @@ function render(){
   else if(screen==="final") html += renderFinal();
   app.innerHTML = html;
   bindEvents();
+  if(screen==="game" && S && SEQUENCE[S.qIndex]==="W") mountWheelAnimation();
 }
 
 function renderTopbar(){
@@ -522,10 +568,123 @@ function renderLobby(){
   `;
 }
 
+function realQuestionNumber(qIndex){
+  let c = 0;
+  for(let i=0;i<=qIndex;i++){ if(SEQUENCE[i]!=="W") c++; }
+  return c;
+}
+
 function renderGame(){
-  const label = `<div class="progress-label">Vraag ${S.qIndex+1} van ${SEQUENCE.length}</div>`;
   const type = SEQUENCE[S.qIndex];
+  if(type==="W") return `<div class="progress-label">Tussenronde 🎡</div>` + renderWheel();
+  const label = `<div class="progress-label">Vraag ${realQuestionNumber(S.qIndex)} van ${REAL_Q_COUNT}</div>`;
   return label + (type==="T" ? renderTrivia() : renderRank());
+}
+
+function wheelGradientCss(){
+  const n = WHEEL_SEGMENTS.length;
+  const step = 360/n;
+  const stops = WHEEL_SEGMENTS.map((seg,i)=> `${seg.color} ${i*step}deg ${(i+1)*step}deg`).join(", ");
+  return `conic-gradient(${stops})`;
+}
+function wheelFinalRotation(segmentIndex){
+  const step = 360/WHEEL_SEGMENTS.length;
+  const center = segmentIndex*step + step/2;
+  return 6*360 + (360 - center);
+}
+let wheelSpunFor = -1;
+function mountWheelAnimation(){
+  const el = document.getElementById("wheelDisc");
+  if(!el) return;
+  const result = S.wheelResult;
+  if(!result){
+    el.style.transition = "none";
+    el.style.transform = "rotate(0deg)";
+    return;
+  }
+  const target = wheelFinalRotation(result.segmentIndex);
+  if(wheelSpunFor === S.qIndex){
+    el.style.transition = "none";
+    el.style.transform = `rotate(${target}deg)`;
+    return;
+  }
+  el.style.transition = "none";
+  el.style.transform = "rotate(0deg)";
+  void el.offsetWidth;
+  requestAnimationFrame(()=>{
+    el.style.transition = "transform 3.2s cubic-bezier(.17,.67,.2,1.1)";
+    el.style.transform = `rotate(${target}deg)`;
+  });
+  wheelSpunFor = S.qIndex;
+}
+
+function renderWheel(){
+  const turnId = S.order[S.turn % S.order.length];
+  const isMyTurn = turnId === myId;
+  const result = S.wheelResult;
+  const wheelHtml = `
+    <div class="wheel-wrap">
+      <div class="wheel-pointer"></div>
+      <div class="wheel-disc" id="wheelDisc" style="background:${wheelGradientCss()};">
+        ${WHEEL_SEGMENTS.map((seg,i)=>{
+          const step = 360/WHEEL_SEGMENTS.length;
+          const angle = i*step + step/2;
+          return `<span class="wheel-label" style="transform:translate(-50%,-50%) rotate(${angle}deg) translateY(-78px);">${seg.icon}</span>`;
+        }).join("")}
+      </div>
+    </div>
+  `;
+
+  if(!result){
+    return `
+      <span class="qtype-badge wheel">Rad van fortuin</span>
+      <h2>${isMyTurn ? "Draai het rad!" : esc(nameOf(turnId)) + " draait"}</h2>
+      ${squiggle()}
+      <div class="card center">
+        ${wheelHtml}
+        ${isMyTurn
+          ? `<button class="btn" id="spinWheelBtn">Draai het rad!</button>`
+          : `<p><span class="pulse-dot"></span>Wachten tot ${esc(nameOf(turnId))} draait…</p>`}
+      </div>
+    `;
+  }
+
+  const seg = WHEEL_SEGMENTS[result.segmentIndex];
+  let outcomeText = "";
+  let needsChoice = false;
+  if(seg.type==="bonus") outcomeText = `${esc(nameOf(turnId))} draaide <strong>Bonuspunt +${seg.amount}</strong>! +${seg.amount} punten. ⭐`;
+  else if(seg.type==="minus") outcomeText = `${esc(nameOf(turnId))} draaide <strong>Minpunt -${seg.amount}</strong>. -${seg.amount} punten. 💀`;
+  else if(seg.type==="beer_self") outcomeText = `${esc(nameOf(turnId))} draaide <strong>nieuw biertje halen</strong> — tijd voor een rondje! 🍺`;
+  else if(seg.type==="beer_choice"){
+    if(!result.chosenId) needsChoice = true;
+    else outcomeText = `${esc(nameOf(turnId))} wijst <strong>${esc(nameOf(result.chosenId))}</strong> aan om een biertje te halen! 🍺👉`;
+  }
+
+  let choiceUi = "";
+  if(needsChoice){
+    if(isMyTurn){
+      let opts = "";
+      S.order.forEach(id=>{ opts += `<button class="option" data-choose="${id}">${esc(nameOf(id))}</button>`; });
+      choiceUi = `<p>Wijs iemand aan die een biertje moet halen:</p><div class="stack">${opts}</div>`;
+    } else {
+      choiceUi = `<p class="center"><span class="pulse-dot"></span>Wachten tot ${esc(nameOf(turnId))} iemand aanwijst…</p>`;
+    }
+  }
+
+  const resolved = !needsChoice;
+  return `
+    <span class="qtype-badge wheel">Rad van fortuin</span>
+    <h2>Uitslag</h2>
+    ${squiggle()}
+    <div class="card center">
+      ${wheelHtml}
+      ${outcomeText ? `<p style="color:var(--chalk); font-weight:600;">${outcomeText}</p>` : ""}
+      ${choiceUi}
+      ${resolved
+        ? (isHost ? `<button class="btn" id="nextQ" style="margin-top:10px;">Volgende vraag</button>` : `<p class="center" style="margin-top:10px;">Wachten tot de host doorgaat…</p>`)
+        : ""}
+    </div>
+  `;
 }
 
 function renderTrivia(){
@@ -760,6 +919,15 @@ function bindEvents(){
 
   const nextQ = document.getElementById("nextQ");
   if(nextQ) nextQ.addEventListener("click", ()=>{ nextQ.disabled = true; hostNextQuestion(); });
+
+  const spinWheelBtn = document.getElementById("spinWheelBtn");
+  if(spinWheelBtn) spinWheelBtn.addEventListener("click", ()=>{
+    spinWheelBtn.disabled = true;
+    sendAction({t:"wheelSpin"});
+  });
+  document.querySelectorAll(".option[data-choose]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{ sendAction({t:"wheelChoice", chosenId: btn.dataset.choose}); });
+  });
 }
 
 render();

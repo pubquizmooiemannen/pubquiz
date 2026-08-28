@@ -81,7 +81,6 @@
     display:inline-block; font-size:0.72rem; font-weight:600; letter-spacing:0.05em; text-transform:uppercase;
     padding:4px 12px; border-radius:999px; margin-bottom:12px;
   }
-  .qtype-badge.trivia{background:rgba(227,168,87,0.18); color:var(--amber);}
   .qtype-badge.rank{background:rgba(46,139,154,0.2); color:var(--azulejo);}
   .qtype-badge.wheel{background:rgba(140,160,107,0.22); color:var(--sage);}
 
@@ -254,7 +253,6 @@ let screenJoinCode = "";
 let error = "";
 let connectionLost = false;
 let _prevQIndex = -1;
-let triviaSelected = null;
 let rankTapped = [];
 
 const app = document.getElementById("app");
@@ -262,7 +260,7 @@ function esc(s){ const d=document.createElement("div"); d.textContent=s; return 
 function squiggle(){ return `<svg class="squiggle" viewBox="0 0 120 14"><path d="M2 10 Q 20 0, 38 8 T 74 8 T 118 6"/></svg>`; }
 function nameOf(id){ const p=(S&&S.players||[]).find(p=>p.id===id); return p?p.name:"…"; }
 
-function resetLocalQuestionState(){ triviaSelected=null; rankTapped=[]; }
+function resetLocalQuestionState(){ rankTapped=[]; }
 
 /* ---------- HOST-SIDE AUTHORITATIVE LOGIC ---------- */
 function snapshot(){
@@ -272,9 +270,7 @@ function snapshot(){
     order: hostState.order,
     phase: hostState.phase,
     qIndex: hostState.qIndex,
-    turn: hostState.turn,
     scores: hostState.scores,
-    triviaRecord: hostState.triviaRecord,
     rankSubs: hostState.rankSubs,
     wheelResult: hostState.wheelResult,
   };
@@ -295,16 +291,6 @@ function addPlayer(id, name){
   hostState.players.push({id, name});
   broadcast();
 }
-function processTriviaAnswer(fromId, idx){
-  if(hostState.phase!=="question" || SEQUENCE[hostState.qIndex]!=="T") return;
-  const turnId = hostState.order[hostState.turn % hostState.order.length];
-  if(fromId !== turnId) return;
-  if(hostState.triviaRecord && hostState.triviaRecord.revealed) return;
-  const q = TRIVIA_QUESTIONS[triviaIndexFor(hostState.qIndex)];
-  hostState.triviaRecord = {selectedIdx: idx, revealed:true};
-  if(idx === q.correct){ hostState.scores[turnId] = (hostState.scores[turnId]||0) + 2; }
-  broadcast();
-}
 function processRankSubmit(fromId, order){
   if(hostState.phase!=="question" || SEQUENCE[hostState.qIndex]!=="R") return;
   if(!hostState.order.includes(fromId)) return;
@@ -312,32 +298,29 @@ function processRankSubmit(fromId, order){
   hostState.rankSubs[fromId] = order;
   if(Object.keys(hostState.rankSubs).length === hostState.order.length && !hostState.rankScored){
     hostState.rankScored = true;
-    const totals = computeRankTotals(hostState.order, hostState.rankSubs);
-    const minVal = Math.min(...totals.map(t=>t.avg));
-    const maxVal = Math.max(...totals.map(t=>t.avg));
-    totals.forEach(t=>{
-      if(t.avg===minVal) hostState.scores[t.id]=(hostState.scores[t.id]||0)+3;
-      else if(t.avg===maxVal && maxVal!==minVal) hostState.scores[t.id]=(hostState.scores[t.id]||0)+1;
+    const placements = rankPlacements(hostState.order, hostState.rankSubs);
+    placements.forEach(p=>{
+      if(p.pts !== 0) hostState.scores[p.id] = (hostState.scores[p.id]||0) + p.pts;
     });
   }
   broadcast();
 }
 function processWheelSpin(fromId){
   if(hostState.phase!=="question" || SEQUENCE[hostState.qIndex]!=="W") return;
-  const turnId = hostState.order[hostState.turn % hostState.order.length];
-  if(fromId !== turnId) return;
+  const spinnerId = hostState.order[wheelIndexFor(hostState.qIndex) % hostState.order.length];
+  if(fromId !== spinnerId) return;
   if(hostState.wheelResult) return;
   const segmentIndex = Math.floor(Math.random()*WHEEL_SEGMENTS.length);
   const seg = WHEEL_SEGMENTS[segmentIndex];
   hostState.wheelResult = {segmentIndex, chosenId:null};
-  if(seg.type==="bonus"){ hostState.scores[turnId] = (hostState.scores[turnId]||0) + seg.amount; }
-  else if(seg.type==="minus"){ hostState.scores[turnId] = (hostState.scores[turnId]||0) - seg.amount; }
+  if(seg.type==="bonus"){ hostState.scores[spinnerId] = (hostState.scores[spinnerId]||0) + seg.amount; }
+  else if(seg.type==="minus"){ hostState.scores[spinnerId] = (hostState.scores[spinnerId]||0) - seg.amount; }
   broadcast();
 }
 function processWheelChoice(fromId, chosenId){
   if(hostState.phase!=="question" || SEQUENCE[hostState.qIndex]!=="W") return;
-  const turnId = hostState.order[hostState.turn % hostState.order.length];
-  if(fromId !== turnId) return;
+  const spinnerId = hostState.order[wheelIndexFor(hostState.qIndex) % hostState.order.length];
+  if(fromId !== spinnerId) return;
   if(!hostState.wheelResult || WHEEL_SEGMENTS[hostState.wheelResult.segmentIndex].type!=="beer_choice") return;
   if(hostState.wheelResult.chosenId) return;
   hostState.wheelResult.chosenId = chosenId;
@@ -345,7 +328,6 @@ function processWheelChoice(fromId, chosenId){
 }
 function handleIncoming(fromId, msg){
   if(msg.t==="join") addPlayer(fromId, msg.name);
-  else if(msg.t==="triviaAnswer") processTriviaAnswer(fromId, msg.idx);
   else if(msg.t==="rankSubmit") processRankSubmit(fromId, msg.order);
   else if(msg.t==="wheelSpin") processWheelSpin(fromId);
   else if(msg.t==="wheelChoice") processWheelChoice(fromId, msg.chosenId);
@@ -353,16 +335,14 @@ function handleIncoming(fromId, msg){
 function hostStartGame(){
   hostState.order = hostState.players.map(p=>p.id);
   hostState.phase = "question";
-  hostState.qIndex = 0; hostState.turn = 0;
-  hostState.triviaRecord = null; hostState.rankSubs = {}; hostState.rankScored = false;
+  hostState.qIndex = 0;
+  hostState.rankSubs = {}; hostState.rankScored = false;
   hostState.wheelResult = null;
   broadcast();
 }
 function hostNextQuestion(){
-  const type = SEQUENCE[hostState.qIndex];
-  if(type==="T") hostState.turn++;
   hostState.qIndex++;
-  hostState.triviaRecord = null; hostState.rankSubs = {}; hostState.rankScored = false;
+  hostState.rankSubs = {}; hostState.rankScored = false;
   hostState.wheelResult = null;
   if(hostState.qIndex >= SEQUENCE.length) hostState.phase = "final";
   broadcast();
@@ -413,7 +393,7 @@ async function hostCreateRoom(name){
     isHost = true; myId = "host"; myName = name;
     hostState = {
       code, players:[{id:"host", name}], order:[], phase:"lobby",
-      qIndex:0, turn:0, scores:{}, triviaRecord:null, rankSubs:{}, rankScored:false, wheelResult:null
+      qIndex:0, scores:{}, rankSubs:{}, rankScored:false, wheelResult:null
     };
     conns = {};
     hostPeer.on("connection", conn=>{
@@ -578,7 +558,7 @@ function renderGame(){
   const type = SEQUENCE[S.qIndex];
   if(type==="W") return `<div class="progress-label">Tussenronde 🎡</div>` + renderWheel();
   const label = `<div class="progress-label">Vraag ${realQuestionNumber(S.qIndex)} van ${REAL_Q_COUNT}</div>`;
-  return label + (type==="T" ? renderTrivia() : renderRank());
+  return label + renderRank();
 }
 
 function wheelGradientCss(){
@@ -619,8 +599,8 @@ function mountWheelAnimation(){
 }
 
 function renderWheel(){
-  const turnId = S.order[S.turn % S.order.length];
-  const isMyTurn = turnId === myId;
+  const spinnerId = S.order[wheelIndexFor(S.qIndex) % S.order.length];
+  const isMyTurn = spinnerId === myId;
   const result = S.wheelResult;
   const wheelHtml = `
     <div class="wheel-wrap">
@@ -638,13 +618,13 @@ function renderWheel(){
   if(!result){
     return `
       <span class="qtype-badge wheel">Rad van fortuin</span>
-      <h2>${isMyTurn ? "Draai het rad!" : esc(nameOf(turnId)) + " draait"}</h2>
+      <h2>${isMyTurn ? "Draai het rad!" : esc(nameOf(spinnerId)) + " draait"}</h2>
       ${squiggle()}
       <div class="card center">
         ${wheelHtml}
         ${isMyTurn
           ? `<button class="btn" id="spinWheelBtn">Draai het rad!</button>`
-          : `<p><span class="pulse-dot"></span>Wachten tot ${esc(nameOf(turnId))} draait…</p>`}
+          : `<p><span class="pulse-dot"></span>Wachten tot ${esc(nameOf(spinnerId))} draait…</p>`}
       </div>
     `;
   }
@@ -652,12 +632,12 @@ function renderWheel(){
   const seg = WHEEL_SEGMENTS[result.segmentIndex];
   let outcomeText = "";
   let needsChoice = false;
-  if(seg.type==="bonus") outcomeText = `${esc(nameOf(turnId))} draaide <strong>Bonuspunt +${seg.amount}</strong>! +${seg.amount} punten. ⭐`;
-  else if(seg.type==="minus") outcomeText = `${esc(nameOf(turnId))} draaide <strong>Minpunt -${seg.amount}</strong>. -${seg.amount} punten. 💀`;
-  else if(seg.type==="beer_self") outcomeText = `${esc(nameOf(turnId))} draaide <strong>nieuw biertje halen</strong> — tijd voor een rondje! 🍺`;
+  if(seg.type==="bonus") outcomeText = `${esc(nameOf(spinnerId))} draaide <strong>Bonuspunt +${seg.amount}</strong>! +${seg.amount} punten. ⭐`;
+  else if(seg.type==="minus") outcomeText = `${esc(nameOf(spinnerId))} draaide <strong>Minpunt -${seg.amount}</strong>. -${seg.amount} punten. 💀`;
+  else if(seg.type==="beer_self") outcomeText = `${esc(nameOf(spinnerId))} draaide <strong>nieuw biertje atten</strong> — in één keer leeg! 🍺`;
   else if(seg.type==="beer_choice"){
     if(!result.chosenId) needsChoice = true;
-    else outcomeText = `${esc(nameOf(turnId))} wijst <strong>${esc(nameOf(result.chosenId))}</strong> aan om een biertje te halen! 🍺👉`;
+    else outcomeText = `${esc(nameOf(spinnerId))} wijst <strong>${esc(nameOf(result.chosenId))}</strong> aan om een biertje te atten! 🍺👉`;
   }
 
   let choiceUi = "";
@@ -665,9 +645,9 @@ function renderWheel(){
     if(isMyTurn){
       let opts = "";
       S.order.forEach(id=>{ opts += `<button class="option" data-choose="${id}">${esc(nameOf(id))}</button>`; });
-      choiceUi = `<p>Wijs iemand aan die een biertje moet halen:</p><div class="stack">${opts}</div>`;
+      choiceUi = `<p>Wijs iemand aan die een biertje moet atten:</p><div class="stack">${opts}</div>`;
     } else {
-      choiceUi = `<p class="center"><span class="pulse-dot"></span>Wachten tot ${esc(nameOf(turnId))} iemand aanwijst…</p>`;
+      choiceUi = `<p class="center"><span class="pulse-dot"></span>Wachten tot ${esc(nameOf(spinnerId))} iemand aanwijst…</p>`;
     }
   }
 
@@ -687,67 +667,6 @@ function renderWheel(){
   `;
 }
 
-function renderTrivia(){
-  const q = TRIVIA_QUESTIONS[triviaIndexFor(S.qIndex)];
-  const turnId = S.order[S.turn % S.order.length];
-  const isMyTurn = turnId === myId;
-  const revealed = S.triviaRecord && S.triviaRecord.revealed;
-
-  if(!revealed){
-    if(isMyTurn){
-      let opts = "";
-      q.options.forEach((opt,i)=>{
-        const sel = triviaSelected===i ? "selected" : "";
-        opts += `<button class="option ${sel}" data-opt="${i}"><span class="num">${String.fromCharCode(65+i)}</span> ${esc(opt)}</button>`;
-      });
-      return `
-        <span class="qtype-badge trivia">Kennisvraag</span>
-        <h2>Jij bent aan de beurt</h2>
-        ${squiggle()}
-        <div class="card">
-          <p style="color:var(--chalk); font-size:1.08rem; font-weight:500;">${esc(q.q)}</p>
-          <div class="stack">${opts}</div>
-          <div style="margin-top:16px;"><button class="btn" id="confirmTrivia" ${triviaSelected===null?"disabled":""}>Bevestig antwoord</button></div>
-        </div>
-      `;
-    }
-    let opts = "";
-    q.options.forEach((opt,i)=>{ opts += `<button class="option dim" disabled><span class="num">${String.fromCharCode(65+i)}</span> ${esc(opt)}</button>`; });
-    return `
-      <span class="qtype-badge trivia">Kennisvraag</span>
-      <h2>${esc(nameOf(turnId))} is aan de beurt</h2>
-      ${squiggle()}
-      <div class="card">
-        <p style="color:var(--chalk); font-size:1.08rem; font-weight:500;">${esc(q.q)}</p>
-        <div class="stack">${opts}</div>
-        <p class="center" style="margin-top:14px;"><span class="pulse-dot"></span>Wachten op antwoord…</p>
-      </div>
-    `;
-  }
-
-  const sel = S.triviaRecord.selectedIdx;
-  const wasCorrect = sel === q.correct;
-  let opts = "";
-  q.options.forEach((opt,i)=>{
-    let cls = "option";
-    if(i===q.correct) cls += " correct"; else if(i===sel) cls += " wrong"; else cls += " dim";
-    opts += `<button class="${cls}" disabled><span class="num">${String.fromCharCode(65+i)}</span> ${esc(opt)}</button>`;
-  });
-  return `
-    <span class="qtype-badge trivia">Kennisvraag</span>
-    <h2>${esc(nameOf(turnId))} antwoordde</h2>
-    ${squiggle()}
-    <div class="card">
-      <p style="color:var(--chalk); font-size:1.08rem; font-weight:500;">${esc(q.q)}</p>
-      <div class="stack">${opts}</div>
-      <p style="color:${wasCorrect?"var(--sage)":"var(--coral)"}; font-weight:600; margin-top:12px;">
-        ${wasCorrect ? `Goed! ${esc(nameOf(turnId))} scoort 2 punten.` : "Helaas, dat was niet het goede antwoord."}
-      </p>
-      ${isHost ? `<button class="btn" id="nextQ">Volgende vraag</button>` : `<p class="center">Wachten tot de host doorgaat…</p>`}
-    </div>
-  `;
-}
-
 function renderRank(){
   const question = RANK_QUESTIONS[rankIndexFor(S.qIndex)];
   const submittedIds = Object.keys(S.rankSubs);
@@ -756,24 +675,29 @@ function renderRank(){
   const iSubmitted = !!S.rankSubs[myId];
 
   if(allIn){
-    const totals = computeRankTotals(S.order, S.rankSubs);
-    const minVal = Math.min(...totals.map(t=>t.avg));
-    const maxVal = Math.max(...totals.map(t=>t.avg));
-    const sorted = [...totals].sort((a,b)=>a.avg-b.avg);
+    const placements = rankPlacements(S.order, S.rankSubs);
     let rows = "";
-    sorted.forEach((t, idx)=>{
-      const isWin = t.avg===minVal;
-      const isLast = t.avg===maxVal && maxVal!==minVal;
-      const pct = 100 - ((t.avg-1)/Math.max(1,(total-1)))*100;
-      let ptsLabel = isWin ? "+3" : (isLast ? "+1" : "");
+    placements.forEach(p=>{
+      const pct = 100 - ((p.avg-1)/Math.max(1,(total-1)))*100;
+      const isWin = p.place===1;
+      const ptsLabel = p.pts>0 ? `+${p.pts}` : (p.pts<0 ? `${p.pts}` : "");
       rows += `<div class="rank-bar-row ${isWin?"win":""}">
-        <div class="pos">${idx+1}</div>
+        <div class="pos">${p.place}</div>
         <div class="info">
-          <div class="nm">${esc(nameOf(t.id))} ${ptsLabel?`<span class="pts">${ptsLabel}</span>`:""}</div>
+          <div class="nm">${esc(nameOf(p.id))} ${ptsLabel?`<span class="pts">${ptsLabel}</span>`:""}</div>
           <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${pct}%"></div></div>
         </div>
       </div>`;
     });
+
+    const standing = S.order
+      .map(id=>({id, name:nameOf(id), score:S.scores[id]||0}))
+      .sort((a,b)=>b.score-a.score);
+    let standingRows = "";
+    standing.forEach((p,idx)=>{
+      standingRows += `<div class="standings-row"><div class="r">${idx+1}</div><div class="n">${esc(p.name)}${p.id===myId?' <span class="youtag">jij</span>':""}</div><div class="s">${p.score}</div></div>`;
+    });
+
     return `
       <span class="qtype-badge rank">Uitslag</span>
       <h2>${esc(question)}</h2>
@@ -782,6 +706,8 @@ function renderRank(){
         ${rows}
         ${isHost ? `<button class="btn" id="nextQ" style="margin-top:14px;">Volgende vraag</button>` : `<p class="center" style="margin-top:14px;">Wachten tot de host doorgaat…</p>`}
       </div>
+      <div class="progress-label" style="margin-top:18px;">Tussenstand</div>
+      <div class="card">${standingRows}</div>
     `;
   }
 
@@ -895,15 +821,6 @@ function bindEvents(){
       copyLinkBtn.textContent = "Selecteer & kopieer handmatig";
     }
     setTimeout(()=>{ copyLinkBtn.textContent = "Kopieer link"; }, 2000);
-  });
-
-  document.querySelectorAll(".option[data-opt]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{ triviaSelected = parseInt(btn.dataset.opt,10); render(); });
-  });
-  const confirmTrivia = document.getElementById("confirmTrivia");
-  if(confirmTrivia) confirmTrivia.addEventListener("click", ()=>{
-    confirmTrivia.disabled = true;
-    sendAction({t:"triviaAnswer", idx: triviaSelected});
   });
 
   document.querySelectorAll(".option[data-tap]").forEach(btn=>{

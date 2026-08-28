@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Pubquiz — Sevilla</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1/dist/peerjs.min.js"></script>
+<style>
+  :root{
+    --bg: #8A3220;
+    --bg-deep: #601F14;
+    --chalk: #FBF1DE;
+    --chalk-dim: #E6C9A6;
+    --amber: #F0A940;
+    --amber-deep: #D68A1F;
+    --coral: #C4432E;
+    --sage: #8CA06B;
+    --azulejo: #2E8B9A;
+    --line: rgba(251,241,222,0.18);
+    --radius: 18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      repeating-linear-gradient(45deg, rgba(46,139,154,0.07) 0 2px, transparent 2px 42px),
+      repeating-linear-gradient(-45deg, rgba(240,169,64,0.06) 0 2px, transparent 2px 42px),
+      linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
+    color:var(--chalk);
+    font-family:'Space Grotesk', sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:520px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; padding:18px 18px 40px;}
+  h1,h2,h3{font-family:'Abril Fatface', cursive; font-weight:400; margin:0 0 6px; letter-spacing:0.3px;}
+  h1{font-size:2.3rem; line-height:1.1;}
+  h2{font-size:2.1rem; line-height:1.05;}
+  .squiggle{width:120px; height:14px; margin:2px 0 18px;}
+  .squiggle path{stroke:var(--amber); stroke-width:4; fill:none; stroke-linecap:round;}
+  p{line-height:1.5; color:var(--chalk-dim); margin:0 0 14px;}
+  .btn{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:1.02rem;
+    border:none; border-radius:999px; padding:14px 26px; cursor:pointer;
+    background:var(--amber); color:#20301F;
+    transition:transform .12s ease, background .15s ease; width:100%;
+  }
+  .btn:hover{background:var(--amber-deep);}
+  .btn:active{transform:scale(0.97);}
+  .btn:focus-visible{outline:3px solid var(--chalk); outline-offset:2px;}
+  .btn.secondary{background:transparent; border:2px solid var(--line); color:var(--chalk);}
+  .btn.secondary:hover{border-color:var(--amber); color:var(--amber);}
+  .btn:disabled{opacity:0.35; cursor:not-allowed;}
+  .card{background:rgba(244,241,230,0.05); border:1.5px dashed var(--line); border-radius:var(--radius); padding:22px 20px;}
+  .stack{display:flex; flex-direction:column; gap:12px;}
+  input[type=text]{
+    width:100%; background:rgba(244,241,230,0.07); border:1.5px solid var(--line);
+    border-radius:12px; padding:12px 14px; color:var(--chalk);
+    font-family:'Space Grotesk', sans-serif; font-size:1rem; letter-spacing:0.02em;
+  }
+  input[type=text]:focus{outline:2px solid var(--amber); border-color:var(--amber);}
+  input[type=text]::placeholder{color:var(--chalk-dim); opacity:0.5;}
+  input.code-input{text-transform:uppercase; letter-spacing:0.3em; text-align:center; font-family:'Abril Fatface',cursive; font-size:1.6rem;}
+
+  .topbar{display:flex; gap:8px; overflow-x:auto; padding-bottom:10px; margin-bottom:6px; scrollbar-width:none;}
+  .topbar::-webkit-scrollbar{display:none;}
+  .coaster{
+    flex:0 0 auto; min-width:64px; text-align:center; background:var(--bg-deep);
+    border:2px solid var(--line); border-radius:50%; width:64px; height:64px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .coaster.me{border-color:var(--sage);}
+  .coaster.lead{border-color:var(--amber);}
+  .coaster .name{font-size:0.6rem; color:var(--chalk-dim); max-width:56px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .coaster .score{font-family:'Abril Fatface',cursive; font-size:1.5rem; font-weight:700; line-height:1;}
+
+  .progress-label{font-size:0.78rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--sage); margin-bottom:4px;}
+  .qtype-badge{
+    display:inline-block; font-size:0.72rem; font-weight:600; letter-spacing:0.05em; text-transform:uppercase;
+    padding:4px 12px; border-radius:999px; margin-bottom:12px;
+  }
+  .qtype-badge.rank{background:rgba(46,139,154,0.2); color:var(--azulejo);}
+  .qtype-badge.wheel{background:rgba(140,160,107,0.22); color:var(--sage);}
+
+  .wheel-wrap{position:relative; width:220px; height:220px; margin:6px auto 20px;}
+  .wheel-pointer{position:absolute; top:-10px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:11px solid transparent; border-right:11px solid transparent; border-top:20px solid var(--chalk); z-index:5;}
+  .wheel-disc{width:100%; height:100%; border-radius:50%; border:5px solid var(--chalk); position:relative; box-shadow:0 6px 18px rgba(0,0,0,0.35);}
+  .wheel-label{position:absolute; top:50%; left:50%; font-size:1.3rem; line-height:1; text-align:center;}
+
+  .option{
+    width:100%; text-align:left; background:rgba(244,241,230,0.06); border:1.5px solid var(--line);
+    border-radius:12px; padding:14px 16px; color:var(--chalk); font-family:'Space Grotesk', sans-serif;
+    font-size:1rem; cursor:pointer; display:flex; align-items:center; gap:10px;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .option:hover{border-color:var(--amber);}
+  .option.correct{background:rgba(143,169,139,0.28); border-color:var(--sage);}
+  .option.wrong{background:rgba(232,146,124,0.22); border-color:var(--coral);}
+  .option.dim{opacity:0.5;}
+  .option.selected .num{border-color:var(--amber); color:var(--amber);}
+  .option .num{
+    width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:var(--chalk-dim); flex:0 0 auto;
+  }
+  .option:disabled{cursor:default;}
+
+  .chip-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; min-height:38px;}
+  .chip{background:var(--amber); color:#20301F; border-radius:999px; padding:6px 14px; font-size:0.9rem; font-weight:600; display:flex; align-items:center; gap:6px;}
+  .chip.ghost{background:transparent; border:1.5px dashed var(--line); color:var(--chalk-dim);}
+  .chip .rank-num{font-family:'Abril Fatface',cursive; font-size:1.1rem;}
+
+  .rank-bar-row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .rank-bar-row .pos{font-family:'Abril Fatface',cursive; font-size:1.6rem; width:28px; text-align:center; color:var(--amber);}
+  .rank-bar-row .info{flex:1;}
+  .rank-bar-row .info .nm{font-weight:600; margin-bottom:3px;}
+  .rank-bar-track{background:rgba(244,241,230,0.1); border-radius:999px; height:8px; overflow:hidden;}
+  .rank-bar-fill{background:var(--azulejo); height:100%; border-radius:999px; transition:width .6s ease;}
+  .rank-bar-row.win .rank-bar-fill{background:var(--amber);}
+  .rank-bar-row .pts{font-size:0.78rem; color:var(--sage); margin-left:6px; white-space:nowrap;}
+
+  .center{text-align:center;}
+  .code-display{font-family:'Abril Fatface',cursive; font-weight:700; font-size:3.4rem; letter-spacing:0.15em; color:var(--amber); text-align:center; margin:6px 0 4px;}
+  .pulse-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--sage); margin-right:6px; animation:blink 1.4s infinite;}
+  @keyframes blink{0%,100%{opacity:0.3;}50%{opacity:1;}}
+
+  .footer-note{margin-top:auto; padding-top:24px; text-align:center; color:var(--chalk-dim); font-size:0.78rem; opacity:0.6;}
+  .error-note{color:var(--coral); font-size:0.85rem; margin:-6px 0 10px;}
+  .warn-banner{background:rgba(232,146,124,0.16); border:1px solid var(--coral); border-radius:12px; padding:10px 14px; font-size:0.82rem; color:var(--coral); margin-bottom:12px;}
+
+  .podium{display:flex; align-items:flex-end; justify-content:center; gap:10px; margin:22px 0 26px;}
+  .podium .step{background:rgba(244,241,230,0.07); border:1.5px dashed var(--line); border-radius:12px 12px 0 0; text-align:center; padding:14px 10px 10px;}
+  .podium .step.gold{height:150px; width:120px; order:2; border-color:var(--amber);}
+  .podium .step.silver{height:118px; width:100px; order:1;}
+  .podium .step.bronze{height:96px; width:100px; order:3;}
+  .podium .medal{font-size:1.8rem;}
+  .podium .pname{font-weight:600; font-size:0.85rem; margin-top:4px; word-break:break-word;}
+  .podium .pscore{font-family:'Abril Fatface',cursive; font-size:1.4rem; color:var(--amber);}
+
+  .standings-row{display:flex; justify-content:space-between; align-items:center; padding:10px 4px; border-bottom:1px solid var(--line);}
+  .standings-row:last-child{border-bottom:none;}
+  .standings-row .r{color:var(--chalk-dim); width:22px;}
+  .standings-row .n{flex:1; font-weight:600;}
+  .standings-row .s{font-family:'Abril Fatface',cursive; font-size:1.3rem; color:var(--amber);}
+
+  .lobby-list{display:flex; flex-direction:column; gap:8px; margin-bottom:18px;}
+  .lobby-row{display:flex; align-items:center; gap:10px; padding:10px 12px; background:rgba(244,241,230,0.05); border-radius:12px;}
+  .lobby-row .dot{width:8px; height:8px; border-radius:50%; background:var(--sage);}
+  .lobby-row .nm{font-weight:600;}
+  .lobby-row .youtag{font-size:0.72rem; color:var(--sage); margin-left:auto;}
+
+  @media (prefers-reduced-motion: reduce){*{transition:none !important; animation:none !important;}}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+/* ================= DATA ================= */
+// Placeholders — vul deze later in met de echte rank-vragen.
+const RANK_QUESTIONS = [
+  "Rank-vraag 1 — nog in te vullen",
+  "Rank-vraag 2 — nog in te vullen",
+  "Rank-vraag 3 — nog in te vullen",
+  "Rank-vraag 4 — nog in te vullen",
+  "Rank-vraag 5 — nog in te vullen",
+  "Rank-vraag 6 — nog in te vullen",
+  "Rank-vraag 7 — nog in te vullen",
+  "Rank-vraag 8 — nog in te vullen",
+  "Rank-vraag 9 — nog in te vullen",
+  "Rank-vraag 10 — nog in te vullen",
+];
+
+// 10 rank-vragen (R), met 6 rad-momenten (W) verspreid zodat elke speler precies 1x draait
+const SEQUENCE = ["R","W","R","R","W","R","W","R","R","W","R","W","R","R","W","R"];
+const REAL_Q_COUNT = SEQUENCE.filter(s=>s!=="W").length;
+
+const WHEEL_SEGMENTS = [
+  {type:"bonus", amount:1, icon:"⭐+1", color:"#F0A940"},
+  {type:"minus", amount:1, icon:"💀-1", color:"#C4432E"},
+  {type:"beer_self", icon:"🍺", color:"#2E8B9A"},
+  {type:"bonus", amount:2, icon:"⭐+2", color:"#F6C36B"},
+  {type:"minus", amount:2, icon:"💀-2", color:"#8E2A1E"},
+  {type:"beer_choice", icon:"🍺👉", color:"#8CA06B"},
+];
+
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+function genCode(){ let s=""; for(let i=0;i<4;i++) s += CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)]; return s; }
+const ICE_CONFIG = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:openrelay.metered.ca:80" },
+    { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+  ]
+};
+function rankIndexFor(qIndex){ let c=-1; for(let i=0;i<=qIndex;i++){ if(SEQUENCE[i]==="R") c++; } return c; }
+function wheelIndexFor(qIndex){ let c=-1; for(let i=0;i<=qIndex;i++){ if(SEQUENCE[i]==="W") c++; } return c; }
+function computeRankTotals(order, subsMap){
+  const totals = [];
+  const subsList = Object.values(subsMap);
+  order.forEach(id=>{
+    let sum = 0;
+    subsList.forEach(sub=>{ sum += sub.indexOf(id) + 1; });
+    totals.push({id, avg: sum / subsList.length});
+  });
+  return totals;
+}
+// The "consensus" ranking: everyone's submissions averaged into one ordered list (index 0 = plek 1)
+function computeConsensusOrder(order, subsMap){
+  const totals = computeRankTotals(order, subsMap);
+  const orderIndex = {};
+  order.forEach((id,i)=>{ orderIndex[id]=i; });
+  const sorted = [...totals].sort((a,b)=> a.avg-b.avg || orderIndex[a.id]-orderIndex[b.id]);
+  return sorted.map(t=>t.id);
+}
+// Shared by host (scoring) and client (display): iedereen krijgt 1 punt per positie
+// waar zijn eigen ingevulde volgorde exact overeenkomt met de consensus-ranglijst.
+function computeGuessScores(order, subsMap){
+  const consensus = computeConsensusOrder(order, subsMap);
+  const scores = {};
+  Object.keys(subsMap).forEach(submitterId=>{
+    const guess = subsMap[submitterId];
+    let correct = 0;
+    for(let i=0;i<consensus.length;i++){ if(guess[i]===consensus[i]) correct++; }
+    scores[submitterId] = correct;
+  });
+  return {consensus, scores};
+}
+
+/* ================= NETWORK / GAME STATE ================= */
+let isHost = false;
+let myId = "";
+let myName = "";
+let hostPeer = null;       // host's Peer object
+let joinerPeer = null;      // joiner's Peer object
+let hostConn = null;         // joiner's connection to host
+let conns = {};                // host: map peerId -> DataConnection
+let hostState = null;           // host-only authoritative state
+let S = null;                    // rendered snapshot (used by both host & joiner)
+let screen = "home";               // home | createName | joinCode | joinName | connecting | lobby | game | final
+let screenJoinCode = "";
+
+/* URL shortcuts: open with ?host to skip straight to hosting,
+   or ?code=ABCD (as a shared join-link) to skip straight to name entry. */
+(function initFromUrl(){
+  const params = new URLSearchParams(location.search);
+  const paramCode = params.get("code");
+  if(paramCode){
+    screenJoinCode = paramCode.trim().toUpperCase();
+    screen = "joinName";
+  } else if(params.has("host")){
+    screen = "createName";
+  }
+})();
+let error = "";
+let connectionLost = false;
+let _prevQIndex = -1;
+let rankTapped = [];
+
+const app = document.getElementById("app");
+function esc(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+function squiggle(){ return `<svg class="squiggle" viewBox="0 0 120 14"><path d="M2 10 Q 20 0, 38 8 T 74 8 T 118 6"/></svg>`; }
+function nameOf(id){ const p=(S&&S.players||[]).find(p=>p.id===id); return p?p.name:"…"; }
+
+function resetLocalQuestionState(){ rankTapped=[]; }
+
+/* ---------- HOST-SIDE AUTHORITATIVE LOGIC ---------- */
+function snapshot(){
+  return {
+    code: hostState.code,
+    players: hostState.players,
+    order: hostState.order,
+    phase: hostState.phase,
+    qIndex: hostState.qIndex,
+    scores: hostState.scores,
+    rankSubs: hostState.rankSubs,
+    wheelResult: hostState.wheelResult,
+  };
+}
+function broadcast(){
+  const snap = snapshot();
+  Object.values(conns).forEach(c=>{ if(c.open) c.send({t:"state", s:snap}); });
+  applySnapshot(snap);
+}
+function sendErrorTo(id, msg){
+  const c = conns[id];
+  if(c && c.open) c.send({t:"error", msg});
+}
+function addPlayer(id, name){
+  if(hostState.phase !== "lobby"){ sendErrorTo(id, "Het spel is al begonnen, je kunt nu niet meer meedoen."); return; }
+  if(hostState.players.some(p=>p.name.toLowerCase()===name.toLowerCase())){ sendErrorTo(id, "Die naam is al in gebruik. Kies een andere naam."); return; }
+  if(hostState.players.length >= 6){ sendErrorTo(id, "Deze kamer zit al vol (6 spelers)."); return; }
+  hostState.players.push({id, name});
+  broadcast();
+}
+function processRankSubmit(fromId, order){
+  if(hostState.phase!=="question" || SEQUENCE[hostState.qIndex]!=="R") return;
+  if(!hostState.order.includes(fromId)) return;
+  if(hostState.rankSubs[fromId]) return;
+  hostState.rankSubs[fromId] = order;
+  if(Object.keys(hostState.rankSubs).length === hostState.order.length && !hostState.rankScored){
+    hostState.rankScored = true;
+    const {scores} = computeGuessScores(hostState.order, hostState.rankSubs);
+    Object.keys(scores).forEach(id=>{
+      if(scores[id] > 0) hostState.scores[id] = (hostState.scores[id]||0) + scores[id];
+    });
+  }
+  broadcast();
+}
+function processWheelSpin(fromId){
+  if(hostState.phase!=="question" || SEQUENCE[hostState.qIndex]!=="W") return;
+  const spinnerId = hostState.order[wheelIndexFor(hostState.qIndex) % hostState.order.length];
+  if(fromId !== spinnerId) return;
+  if(hostState.wheelResult) return;
+  const segmentIndex = Math.floor(Math.random()*WHEEL_SEGMENTS.length);
+  const seg = WHEEL_SEGMENTS[segmentIndex];
+  hostState.wheelResult = {segmentIndex, chosenId:null};
+  if(seg.type==="bonus"){ hostState.scores[spinnerId] = (hostState.scores[spinnerId]||0) + seg.amount; }
+  else if(seg.type==="minus"){ hostState.scores[spinnerId] = (hostState.scores[spinnerId]||0) - seg.amount; }
+  broadcast();
+}
+function processWheelChoice(fromId, chosenId){
+  if(hostState.phase!=="question" || SEQUENCE[hostState.qIndex]!=="W") return;
+  const spinnerId = hostState.order[wheelIndexFor(hostState.qIndex) % hostState.order.length];
+  if(fromId !== spinnerId) return;
+  if(!hostState.wheelResult || WHEEL_SEGMENTS[hostState.wheelResult.segmentIndex].type!=="beer_choice") return;
+  if(hostState.wheelResult.chosenId) return;
+  hostState.wheelResult.chosenId = chosenId;
+  broadcast();
+}
+function handleIncoming(fromId, msg){
+  if(msg.t==="join") addPlayer(fromId, msg.name);
+  else if(msg.t==="rankSubmit") processRankSubmit(fromId, msg.order);
+  else if(msg.t==="wheelSpin") processWheelSpin(fromId);
+  else if(msg.t==="wheelChoice") processWheelChoice(fromId, msg.chosenId);
+}
+function hostStartGame(){
+  hostState.order = hostState.players.map(p=>p.id);
+  hostState.phase = "question";
+  hostState.qIndex = 0;
+  hostState.rankSubs = {}; hostState.rankScored = false;
+  hostState.wheelResult = null;
+  broadcast();
+}
+function hostNextQuestion(){
+  hostState.qIndex++;
+  hostState.rankSubs = {}; hostState.rankScored = false;
+  hostState.wheelResult = null;
+  if(hostState.qIndex >= SEQUENCE.length) hostState.phase = "final";
+  broadcast();
+}
+
+/* ---------- SHARED: apply a received/produced snapshot ---------- */
+function applySnapshot(snap){
+  if(snap.qIndex !== _prevQIndex){ resetLocalQuestionState(); _prevQIndex = snap.qIndex; }
+  S = snap;
+  if(screen==="lobby" && S.phase==="question") screen="game";
+  if((screen==="game"||screen==="lobby") && S.phase==="final") screen="final";
+  render();
+}
+
+/* ---------- ACTIONS SENT FROM CLIENT (host or joiner) ---------- */
+function sendAction(msg){
+  if(isHost){ handleIncoming("host", msg); }
+  else if(hostConn && hostConn.open){ hostConn.send(msg); }
+}
+
+/* ---------- CONNECTING ---------- */
+function createPeerWithId(id, attempt){
+  attempt = attempt || 0;
+  return new Promise((resolve, reject)=>{
+    let settled = false;
+    let p;
+    try{ p = new Peer(id, {debug:0, config: ICE_CONFIG}); }catch(e){ reject(e); return; }
+    p.on("open", ()=>{ if(!settled){ settled=true; resolve(p); } });
+    p.on("error", (err)=>{
+      if(settled) return;
+      if(err && err.type === "unavailable-id" && attempt < 5){
+        settled = true;
+        try{ p.destroy(); }catch(e){}
+        resolve(createPeerWithId(genCode(), attempt+1));
+      } else {
+        settled = true;
+        reject(err);
+      }
+    });
+  });
+}
+
+async function hostCreateRoom(name){
+  error = "";
+  try{
+    hostPeer = await createPeerWithId(genCode());
+    const code = hostPeer.id;
+    isHost = true; myId = "host"; myName = name;
+    hostState = {
+      code, players:[{id:"host", name}], order:[], phase:"lobby",
+      qIndex:0, scores:{}, rankSubs:{}, rankScored:false, wheelResult:null
+    };
+    conns = {};
+    hostPeer.on("connection", conn=>{
+      conns[conn.peer] = conn;
+      conn.on("data", data=>handleIncoming(conn.peer, data));
+      conn.on("close", ()=>{ delete conns[conn.peer]; });
+    });
+    hostPeer.on("disconnected", ()=>{ connectionLost = true; render(); });
+    applySnapshot(snapshot());
+    return true;
+  }catch(e){
+    error = "Kon geen kamer starten. Check je internetverbinding en probeer opnieuw.";
+    return false;
+  }
+}
+
+async function joinRoom(code, name){
+  error = "";
+  try{
+    joinerPeer = new Peer(undefined, {debug:0, config: ICE_CONFIG});
+    await new Promise((resolve, reject)=>{
+      let settled = false;
+      joinerPeer.on("open", ()=>{ if(!settled){ settled=true; resolve(); } });
+      joinerPeer.on("error", err=>{ if(!settled){ settled=true; reject(err); } });
+      setTimeout(()=>{ if(!settled){ settled=true; reject(new Error("timeout")); } }, 12000);
+    });
+    myId = joinerPeer.id; myName = name; isHost = false;
+    hostConn = joinerPeer.connect(code, {reliable:true});
+    const ok = await new Promise((resolve)=>{
+      let done = false;
+      hostConn.on("open", ()=>{ hostConn.send({t:"join", name}); });
+      hostConn.on("data", data=>{
+        if(data.t==="error" && !done){ done=true; error=data.msg; resolve(false); return; }
+        if(data.t==="state"){
+          if(!done){ done=true; resolve(true); }
+          applySnapshot(data.s);
+        }
+      });
+      hostConn.on("close", ()=>{ connectionLost = true; render(); });
+      hostConn.on("error", ()=>{ if(!done){ done=true; error="Kon geen verbinding maken. Check de code en probeer opnieuw."; resolve(false); } });
+      setTimeout(()=>{ if(!done){ done=true; error="Verbinding duurde te lang. Check de code, en probeer indien mogelijk hetzelfde wifi-netwerk als de host."; resolve(false); } }, 15000);
+    });
+    return ok;
+  }catch(e){
+    error = "Kon niet verbinden. Check je internetverbinding en probeer opnieuw.";
+    return false;
+  }
+}
+
+/* ================= RENDER ================= */
+function render(){
+  let html = "";
+  if(connectionLost){
+    html += `<div class="warn-banner">⚠️ Verbinding verbroken. ${isHost ? "Ververs de pagina om opnieuw te hosten (scores gaan dan verloren)." : "Probeer opnieuw te verbinden met de kamercode."}</div>`;
+  }
+  if(screen==="lobby" || screen==="game"){ html += renderTopbar(); }
+  if(screen==="home") html += renderHome();
+  else if(screen==="createName") html += renderNameForm("create");
+  else if(screen==="joinCode") html += renderJoinCode();
+  else if(screen==="joinName") html += renderNameForm("join");
+  else if(screen==="lobby") html += renderLobby();
+  else if(screen==="game") html += renderGame();
+  else if(screen==="final") html += renderFinal();
+  app.innerHTML = html;
+  bindEvents();
+  if(screen==="game" && S && SEQUENCE[S.qIndex]==="W") mountWheelAnimation();
+}
+
+function renderTopbar(){
+  const ids = (S.order && S.order.length) ? S.order : S.players.map(p=>p.id);
+  const maxScore = Math.max(0, ...ids.map(id=>S.scores[id]||0));
+  let row = `<div class="topbar">`;
+  ids.forEach(id=>{
+    const sc = S.scores[id] || 0;
+    const lead = sc===maxScore && maxScore>0 ? "lead" : "";
+    const me = id===myId ? "me" : "";
+    row += `<div class="coaster ${lead} ${me}"><div class="score">${sc}</div><div class="name">${esc(nameOf(id))}</div></div>`;
+  });
+  row += `</div>`;
+  return row;
+}
+
+function renderHome(){
+  return `
+    <h1>Pubquiz Sevilla</h1>
+    ${squiggle()}
+    <p>Weekendje weg met de groep — iedereen speelt mee op zijn eigen telefoon. Rank-vragen over elkaar en algemene kennisvragen, om de beurt.</p>
+    <div class="card stack">
+      <button class="btn" id="goCreate">Ik ben de host (laptop)</button>
+      <button class="btn secondary" id="goJoin">Ik doe mee (telefoon) — meedoen met code</button>
+    </div>
+    <div class="footer-note">Werkt via een rechtstreekse verbinding tussen jullie apparaten. Iedereen heeft internet nodig; de host houdt de pagina open zolang jullie spelen.</div>
+  `;
+}
+
+function renderJoinCode(){
+  return `
+    <h2>Kamercode</h2>
+    ${squiggle()}
+    <div class="card">
+      <p>Vraag de code aan de host (die op de laptop).</p>
+      ${error ? `<div class="error-note">${esc(error)}</div>` : ""}
+      <input type="text" class="code-input" id="codeInput" maxlength="4" placeholder="ABCD">
+      <div class="stack" style="margin-top:14px;">
+        <button class="btn" id="submitCode">Volgende</button>
+        <button class="btn secondary" id="backHome">Terug</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderNameForm(mode){
+  const sub = mode==="create" ? "Je start een nieuwe kamer op deze laptop en doet zelf ook mee." : `Je doet mee met kamer ${esc(screenJoinCode)}.`;
+  return `
+    <h2>Jouw naam</h2>
+    ${squiggle()}
+    <div class="card">
+      <p>${sub}</p>
+      ${error ? `<div class="error-note">${esc(error)}</div>` : ""}
+      <input type="text" id="nameField" placeholder="Bijv. Sanne" maxlength="16">
+      <div class="stack" style="margin-top:14px;">
+        <button class="btn" id="submitName">${mode==="create" ? "Maak kamer aan" : "Doe mee"}</button>
+        <button class="btn secondary" id="backHome2">Terug</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderLobby(){
+  let rows = "";
+  S.players.forEach(p=>{
+    rows += `<div class="lobby-row"><span class="dot"></span><span class="nm">${esc(p.name)}</span>${p.id===myId?'<span class="youtag">jij</span>':""}</div>`;
+  });
+  const canStart = S.players.length >= 2;
+  const joinLink = location.origin + location.pathname + "?code=" + S.code;
+  return `
+    <h2>Kamer ${esc(S.code)}</h2>
+    ${squiggle()}
+    <div class="card">
+      <div class="code-display">${esc(S.code)}</div>
+      <p class="center"><span class="pulse-dot"></span>Deel deze code, of stuur onderstaande link — dan hoeft niemand 'm te typen.</p>
+      ${isHost ? `
+        <input type="text" id="joinLinkField" value="${esc(joinLink)}" readonly style="font-size:0.8rem; margin-bottom:10px;">
+        <button class="btn secondary" id="copyLinkBtn" style="margin-bottom:16px;">Kopieer link</button>
+      ` : ""}
+      <div class="lobby-list">${rows}</div>
+      ${isHost
+        ? `<button class="btn" id="startGameBtn" ${canStart?"":"disabled"}>Start de pubquiz (${S.players.length}/6)</button>
+           ${!canStart ? '<p class="center" style="margin-top:8px;">Minstens 2 spelers nodig.</p>' : ""}`
+        : `<p class="center">Wachten tot de host de quiz start…</p>`}
+    </div>
+  `;
+}
+
+function realQuestionNumber(qIndex){
+  let c = 0;
+  for(let i=0;i<=qIndex;i++){ if(SEQUENCE[i]!=="W") c++; }
+  return c;
+}
+
+function renderGame(){
+  const type = SEQUENCE[S.qIndex];
+  if(type==="W") return `<div class="progress-label">Tussenronde 🎡</div>` + renderWheel();
+  const label = `<div class="progress-label">Vraag ${realQuestionNumber(S.qIndex)} van ${REAL_Q_COUNT}</div>`;
+  return label + renderRank();
+}
+
+function wheelGradientCss(){
+  const n = WHEEL_SEGMENTS.length;
+  const step = 360/n;
+  const stops = WHEEL_SEGMENTS.map((seg,i)=> `${seg.color} ${i*step}deg ${(i+1)*step}deg`).join(", ");
+  return `conic-gradient(${stops})`;
+}
+function wheelFinalRotation(segmentIndex){
+  const step = 360/WHEEL_SEGMENTS.length;
+  const center = segmentIndex*step + step/2;
+  return 6*360 + (360 - center);
+}
+let wheelSpunFor = -1;
+let wheelRevealReadyFor = -1;
+function mountWheelAnimation(){
+  const el = document.getElementById("wheelDisc");
+  if(!el) return;
+  const result = S.wheelResult;
+  if(!result){
+    el.style.transition = "none";
+    el.style.transform = "rotate(0deg)";
+    return;
+  }
+  const target = wheelFinalRotation(result.segmentIndex);
+  if(wheelSpunFor === S.qIndex){
+    // already animated (or a late viewer) — nothing to spin, safe to show immediately
+    el.style.transition = "none";
+    el.style.transform = `rotate(${target}deg)`;
+    if(wheelRevealReadyFor !== S.qIndex) wheelRevealReadyFor = S.qIndex;
+    return;
+  }
+  el.style.transition = "none";
+  el.style.transform = "rotate(0deg)";
+  void el.offsetWidth;
+  requestAnimationFrame(()=>{
+    el.style.transition = "transform 3.2s cubic-bezier(.17,.67,.2,1.1)";
+    el.style.transform = `rotate(${target}deg)`;
+  });
+  wheelSpunFor = S.qIndex;
+  setTimeout(()=>{ wheelRevealReadyFor = S.qIndex; render(); }, 3300);
+}
+
+function renderWheel(){
+  const spinnerId = S.order[wheelIndexFor(S.qIndex) % S.order.length];
+  const isMyTurn = spinnerId === myId;
+  const result = S.wheelResult;
+  const wheelHtml = `
+    <div class="wheel-wrap">
+      <div class="wheel-pointer"></div>
+      <div class="wheel-disc" id="wheelDisc" style="background:${wheelGradientCss()};">
+        ${WHEEL_SEGMENTS.map((seg,i)=>{
+          const step = 360/WHEEL_SEGMENTS.length;
+          const angle = i*step + step/2;
+          return `<span class="wheel-label" style="transform:translate(-50%,-50%) rotate(${angle}deg) translateY(-78px);">${seg.icon}</span>`;
+        }).join("")}
+      </div>
+    </div>
+  `;
+
+  if(!result){
+    return `
+      <span class="qtype-badge wheel">Rad van fortuin</span>
+      <h2>${isMyTurn ? "Draai het rad!" : esc(nameOf(spinnerId)) + " draait"}</h2>
+      ${squiggle()}
+      <div class="card center">
+        ${wheelHtml}
+        ${isMyTurn
+          ? `<button class="btn" id="spinWheelBtn">Draai het rad!</button>`
+          : `<p><span class="pulse-dot"></span>Wachten tot ${esc(nameOf(spinnerId))} draait…</p>`}
+      </div>
+    `;
+  }
+
+  const revealReady = wheelRevealReadyFor === S.qIndex;
+  if(!revealReady){
+    return `
+      <span class="qtype-badge wheel">Rad van fortuin</span>
+      <h2>${esc(nameOf(spinnerId))} draait…</h2>
+      ${squiggle()}
+      <div class="card center">
+        ${wheelHtml}
+        <p><span class="pulse-dot"></span>Het rad draait nog…</p>
+      </div>
+    `;
+  }
+
+  const seg = WHEEL_SEGMENTS[result.segmentIndex];
+  let outcomeText = "";
+  let needsChoice = false;
+  if(seg.type==="bonus") outcomeText = `${esc(nameOf(spinnerId))} draaide <strong>Bonuspunt +${seg.amount}</strong>! +${seg.amount} punten. ⭐`;
+  else if(seg.type==="minus") outcomeText = `${esc(nameOf(spinnerId))} draaide <strong>Minpunt -${seg.amount}</strong>. -${seg.amount} punten. 💀`;
+  else if(seg.type==="beer_self") outcomeText = `${esc(nameOf(spinnerId))} draaide <strong>nieuw biertje atten</strong> — in één keer leeg! 🍺`;
+  else if(seg.type==="beer_choice"){
+    if(!result.chosenId) needsChoice = true;
+    else outcomeText = `${esc(nameOf(spinnerId))} wijst <strong>${esc(nameOf(result.chosenId))}</strong> aan om een biertje te atten! 🍺👉`;
+  }
+
+  let choiceUi = "";
+  if(needsChoice){
+    if(isMyTurn){
+      let opts = "";
+      S.order.forEach(id=>{ opts += `<button class="option" data-choose="${id}">${esc(nameOf(id))}</button>`; });
+      choiceUi = `<p>Wijs iemand aan die een biertje moet atten:</p><div class="stack">${opts}</div>`;
+    } else {
+      choiceUi = `<p class="center"><span class="pulse-dot"></span>Wachten tot ${esc(nameOf(spinnerId))} iemand aanwijst…</p>`;
+    }
+  }
+
+  const resolved = !needsChoice;
+  return `
+    <span class="qtype-badge wheel">Rad van fortuin</span>
+    <h2>Uitslag</h2>
+    ${squiggle()}
+    <div class="card center">
+      ${wheelHtml}
+      ${outcomeText ? `<p style="color:var(--chalk); font-weight:600;">${outcomeText}</p>` : ""}
+      ${choiceUi}
+      ${resolved
+        ? (isHost ? `<button class="btn" id="nextQ" style="margin-top:10px;">Volgende vraag</button>` : `<p class="center" style="margin-top:10px;">Wachten tot de host doorgaat…</p>`)
+        : ""}
+    </div>
+  `;
+}
+
+function renderRank(){
+  const question = RANK_QUESTIONS[rankIndexFor(S.qIndex)];
+  const submittedIds = Object.keys(S.rankSubs);
+  const total = S.order.length;
+  const allIn = submittedIds.length >= total && total > 0;
+  const iSubmitted = !!S.rankSubs[myId];
+
+  if(allIn){
+    const {consensus, scores: roundScores} = computeGuessScores(S.order, S.rankSubs);
+    const totals = computeRankTotals(S.order, S.rankSubs);
+    const totalsById = {};
+    totals.forEach(t=>{ totalsById[t.id] = t.avg; });
+
+    let consensusRows = "";
+    consensus.forEach((id, idx)=>{
+      const avg = totalsById[id];
+      const pct = 100 - ((avg-1)/Math.max(1,(total-1)))*100;
+      consensusRows += `<div class="rank-bar-row ${idx===0?"win":""}">
+        <div class="pos">${idx+1}</div>
+        <div class="info">
+          <div class="nm">${esc(nameOf(id))}</div>
+          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${pct}%"></div></div>
+        </div>
+      </div>`;
+    });
+
+    const scoreList = S.order
+      .map(id=>({id, name:nameOf(id), correct: roundScores[id]||0}))
+      .sort((a,b)=>b.correct-a.correct);
+    let scoreRows = "";
+    scoreList.forEach(p=>{
+      scoreRows += `<div class="standings-row"><div class="r">${p.correct}/${total}</div><div class="n">${esc(p.name)}${p.id===myId?' <span class="youtag">jij</span>':""}</div><div class="s">+${p.correct}</div></div>`;
+    });
+
+    const standing = S.order
+      .map(id=>({id, name:nameOf(id), score:S.scores[id]||0}))
+      .sort((a,b)=>b.score-a.score);
+    let standingRows = "";
+    standing.forEach((p,idx)=>{
+      standingRows += `<div class="standings-row"><div class="r">${idx+1}</div><div class="n">${esc(p.name)}${p.id===myId?' <span class="youtag">jij</span>':""}</div><div class="s">${p.score}</div></div>`;
+    });
+
+    return `
+      <span class="qtype-badge rank">Wat de groep gemiddeld vond</span>
+      <h2>${esc(question)}</h2>
+      ${squiggle()}
+      <div class="card">${consensusRows}</div>
+      <div class="progress-label" style="margin-top:18px;">Score deze ronde — 1 punt per juist geraden plek</div>
+      <div class="card">
+        ${scoreRows}
+        ${isHost ? `<button class="btn" id="nextQ" style="margin-top:14px;">Volgende vraag</button>` : `<p class="center" style="margin-top:14px;">Wachten tot de host doorgaat…</p>`}
+      </div>
+      <div class="progress-label" style="margin-top:18px;">Tussenstand</div>
+      <div class="card">${standingRows}</div>
+    `;
+  }
+
+  if(iSubmitted){
+    let chips = "";
+    S.order.forEach(id=>{
+      const done = !!S.rankSubs[id];
+      chips += `<div class="chip ${done?"":"ghost"}">${esc(nameOf(id))} ${done?"✓":"…"}</div>`;
+    });
+    return `
+      <span class="qtype-badge rank">Rank-vraag</span>
+      <h2>${esc(question)}</h2>
+      ${squiggle()}
+      <div class="card">
+        <p><span class="pulse-dot"></span>Wachten tot iedereen heeft ingevuld (${submittedIds.length}/${total})</p>
+        <div class="chip-row">${chips}</div>
+      </div>
+    `;
+  }
+
+  let chips = "";
+  rankTapped.forEach((id, idx)=>{ chips += `<div class="chip"><span class="rank-num">${idx+1}</span> ${esc(nameOf(id))}</div>`; });
+  let options = "";
+  S.order.forEach(id=>{
+    if(rankTapped.includes(id)) return;
+    options += `<button class="option" data-tap="${id}">${esc(nameOf(id))}</button>`;
+  });
+  const done = rankTapped.length === S.order.length;
+  return `
+    <span class="qtype-badge rank">Rank-vraag</span>
+    <h2>${esc(question)}</h2>
+    ${squiggle()}
+    <div class="card">
+      <p>Tik iedereen in volgorde: eerst wie het <strong>meest</strong> past, als laatst wie het <strong>minst</strong> past.</p>
+      <div class="chip-row">${chips || '<span style="color:var(--chalk-dim); font-size:0.85rem;">Nog niemand getikt</span>'}</div>
+      <div class="stack">${options}</div>
+      <div class="stack" style="margin-top:14px;">
+        <button class="btn secondary" id="undoTap" ${rankTapped.length===0?"disabled":""}>Laatste ongedaan maken</button>
+        <button class="btn" id="confirmRank" ${done?"":"disabled"}>Bevestig mijn volgorde</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderFinal(){
+  const ids = (S.order && S.order.length) ? S.order : S.players.map(p=>p.id);
+  const rows = ids.map(id=>({id, name:nameOf(id), score:S.scores[id]||0})).sort((a,b)=>b.score-a.score);
+  const [first, second, third] = rows;
+  let podium = `<div class="podium">`;
+  if(second) podium += `<div class="step silver"><div class="medal">🥈</div><div class="pname">${esc(second.name)}</div><div class="pscore">${second.score}</div></div>`;
+  if(first) podium += `<div class="step gold"><div class="medal">🥇</div><div class="pname">${esc(first.name)}</div><div class="pscore">${first.score}</div></div>`;
+  if(third) podium += `<div class="step bronze"><div class="medal">🥉</div><div class="pname">${esc(third.name)}</div><div class="pscore">${third.score}</div></div>`;
+  podium += `</div>`;
+  let rest = "";
+  rows.forEach((p,idx)=>{ rest += `<div class="standings-row"><div class="r">${idx+1}</div><div class="n">${esc(p.name)}</div><div class="s">${p.score}</div></div>`; });
+  return `
+    <h1>${first?esc(first.name):""} wint!</h1>
+    ${squiggle()}
+    <p>Het weekend kan beginnen. Dit is de eindstand:</p>
+    ${podium}
+    <div class="card">${rest}</div>
+    <div class="footer-note">¡Salud! 🍷</div>
+  `;
+}
+
+/* ================= EVENTS ================= */
+
+function bindEvents(){
+  const goCreate = document.getElementById("goCreate");
+  if(goCreate) goCreate.addEventListener("click", ()=>{ error=""; screen="createName"; render(); });
+
+  const goJoin = document.getElementById("goJoin");
+  if(goJoin) goJoin.addEventListener("click", ()=>{ error=""; screen="joinCode"; render(); });
+
+  const backHome = document.getElementById("backHome");
+  if(backHome) backHome.addEventListener("click", ()=>{ error=""; screen="home"; render(); });
+  const backHome2 = document.getElementById("backHome2");
+  if(backHome2) backHome2.addEventListener("click", ()=>{ error=""; screen="home"; render(); });
+
+  const submitCode = document.getElementById("submitCode");
+  if(submitCode) submitCode.addEventListener("click", ()=>{
+    const val = document.getElementById("codeInput").value.trim().toUpperCase();
+    if(val.length !== 4){ error="Vul de 4-letter code in."; render(); return; }
+    screenJoinCode = val; error=""; screen="joinName"; render();
+  });
+
+  const submitName = document.getElementById("submitName");
+  if(submitName) submitName.addEventListener("click", async ()=>{
+    const val = document.getElementById("nameField").value.trim();
+    if(!val){ error="Vul een naam in."; render(); return; }
+    submitName.disabled = true; submitName.textContent = "Verbinden…";
+    let ok;
+    if(screen === "createName") ok = await hostCreateRoom(val);
+    else ok = await joinRoom(screenJoinCode, val);
+    if(ok) screen = "lobby";
+    render();
+  });
+
+  const startGameBtn = document.getElementById("startGameBtn");
+  if(startGameBtn) startGameBtn.addEventListener("click", ()=>{ hostStartGame(); });
+
+  const copyLinkBtn = document.getElementById("copyLinkBtn");
+  if(copyLinkBtn) copyLinkBtn.addEventListener("click", async ()=>{
+    const field = document.getElementById("joinLinkField");
+    try{
+      await navigator.clipboard.writeText(field.value);
+      copyLinkBtn.textContent = "Gekopieerd ✓";
+    }catch(e){
+      field.select();
+      field.setSelectionRange(0, 99999);
+      copyLinkBtn.textContent = "Selecteer & kopieer handmatig";
+    }
+    setTimeout(()=>{ copyLinkBtn.textContent = "Kopieer link"; }, 2000);
+  });
+
+  document.querySelectorAll(".option[data-tap]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{ rankTapped.push(btn.dataset.tap); render(); });
+  });
+  const undoTap = document.getElementById("undoTap");
+  if(undoTap) undoTap.addEventListener("click", ()=>{ rankTapped.pop(); render(); });
+  const confirmRank = document.getElementById("confirmRank");
+  if(confirmRank) confirmRank.addEventListener("click", ()=>{
+    confirmRank.disabled = true;
+    sendAction({t:"rankSubmit", order:[...rankTapped]});
+  });
+
+  const nextQ = document.getElementById("nextQ");
+  if(nextQ) nextQ.addEventListener("click", ()=>{ nextQ.disabled = true; hostNextQuestion(); });
+
+  const spinWheelBtn = document.getElementById("spinWheelBtn");
+  if(spinWheelBtn) spinWheelBtn.addEventListener("click", ()=>{
+    spinWheelBtn.disabled = true;
+    sendAction({t:"wheelSpin"});
+  });
+  document.querySelectorAll(".option[data-choose]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{ sendAction({t:"wheelChoice", chosenId: btn.dataset.choose}); });
+  });
+}
+
+render();
+</script>
+</body>
+</html>
